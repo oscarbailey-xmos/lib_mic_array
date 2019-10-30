@@ -81,6 +81,7 @@
 #define S_DC_OFFSET_SAMPLE_NO   8
 
 #define S_FIR_GAIN_COMP     	9
+<<<<<<< HEAD
 
 #define S_FAR_END_CHANNEL_0     10
 #define S_FAR_END_CHANNEL_1     11
@@ -379,6 +380,309 @@
 		stw r2, r8[r6]
 
 #endif
+=======
+
+#define S_FAR_END_CHANNEL_0     10
+#define S_FAR_END_CHANNEL_1     11
+#define S_FAR_END_CHANNEL_2     12
+#define S_FAR_END_CHANNEL_3     13
+
+#define S_ASYNC_INTERFACE       14
+
+#define S_STORAGE_SIZE 			16
+
+//////////////////////////////////////////////////////////////////////////////////////
+//this address must be double word aligned
+#define S_SECOND_STAGE_DATA 		(S_STORAGE + S_STORAGE_SIZE)
+#define S_SECOND_STAGE_DATA_SIZE 	(16*2*4)		//16 words by 2 blocks by 4 channels
+
+//////////////////////////////////////////////////////////////////////////////////////
+
+#define S_THIRD_STAGE 					(S_SECOND_STAGE_DATA + S_SECOND_STAGE_DATA_SIZE)
+
+#define S_D_THIRD_STAGE_PHASE_AND_COUNT 0	//0 1
+											//2 3
+#define S_D_THIRD_STAGE_POINTERS        1	//4 5
+#define S_D_THIRD_STAGE_CH0_ACC 		3	//6 7
+#define S_D_THIRD_STAGE_CH1_ACC 		4	//8 9
+#define S_D_THIRD_STAGE_CH2_ACC 		5	//10 11
+#define S_D_THIRD_STAGE_CH3_ACC 		6	//12 13
+
+#define S_THIRD_STAGE_PHASE 			0		//need to be 0-11 for divide_by_four
+#define S_THIRD_STAGE_PHASE_COUNT 		1
+#define S_THIRD_STAGE_DATA_POINTER      2
+#define S_THIRD_STAGE_COEFS_POINER		3
+#define S_THIRD_STAGE_COEFS_PHASE		4
+#define S_THIRD_STAGE_UNUSED			5
+#define S_THIRD_STAGE_SIZE				(16)
+
+//////////////////////////////////////////////////////////////////////////////////////
+
+#define S_OUTPUT_STORAGE (S_THIRD_STAGE+S_THIRD_STAGE_SIZE)
+#define S_D_OUTPUT_STORAGE_01 0
+#define S_D_OUTPUT_STORAGE_23 1
+#define S_OUTPUT_STORAGE_SIZE 4
+
+//////////////////////////////////////////////////////////////////////////////////////
+
+//Note: this will survive a reconfig
+#define S_DC_ELIMINATE 					(S_OUTPUT_STORAGE+S_OUTPUT_STORAGE_SIZE)
+#define S_PREV_X_0						0
+#define S_PREV_X_1						1
+#define S_PREV_X_2						2
+#define S_PREV_X_3						3
+
+#define S_D_PREV_X_01					0
+#define S_D_PREV_X_23					1
+#define S_D_PREV_Y_0 					2
+#define S_D_PREV_Y_1 					3
+#define S_D_PREV_Y_2 					4
+#define S_D_PREV_Y_3 					5
+#define DC_ELIMINATE_STACK_SIZE 		12
+
+//frame
+#define S_FRAME_OFFSET (S_DC_ELIMINATE + DC_ELIMINATE_STACK_SIZE)
+#define S_D_FRAME_POINTER_AND_INDEX_0 3
+#define S_D_FRAME_POINTER_AND_INDEX_1 4
+#define S_D_FRAME_NO_OVERLAPPING      1
+#define S_D_METADATA_POINTERS 		  2
+#define S_FRAME_GAIN			0   //this is the current gain on the frame
+#define S_FRAME_SIZE_LOG2		1	//this is the current frame size log2
+#define S_FRAME_NUMBER			2	//should this be presistant between configs?
+#define S_OVERLAPPING_FRAMES    3	//0 for on overlap, 1 for overlapping
+#define S_METADATA_POINTER_0    4
+#define S_METADATA_POINTER_1    5
+#define S_FRAME_POINTER_0 		6	//pointer to the current frame
+#define S_FRAME_0_INDEX     	7	//index to write to the current frame
+#define S_FRAME_POINTER_1 		8	//pointer to the next frame
+#define S_FRAME_1_INDEX     	9	//index to write to the next frame
+#define S_FRAME_SIZE    		10	//this is the current frame size log2
+#define FRAME_STACK_SIZE		12
+
+#define S_MIC_CALIB_OFFSET (S_FRAME_OFFSET+FRAME_STACK_SIZE)
+#define S_MIC_CALIB_0 		0
+#define S_MIC_CALIB_1 		1
+#define S_D_MIC_CALIB_01 	0
+#define S_MIC_CALIB_2 		2
+#define S_MIC_CALIB_3		3
+#define S_D_MIC_CALIB_23 	1
+#define MIC_CALIB_STACK_SIZE		4
+
+#define S_SETTINGS_OFFSET (S_MIC_CALIB_OFFSET+MIC_CALIB_STACK_SIZE)
+#define S_WINDOWING_ENABLED 			0	//0 for disabled, pointer for enabled
+#define S_INDEX_BITREVERSING_ENABLED 	1
+#define S_DC_OFFSET_REMOVAL_ENABLED 	2
+#define S_DECIMATION_FACTOR_is_now_S_THIRD_STAGE_PHASE_COUNT 			3
+#define S_MIC_GAIN_COMP		 			4
+#define S_SETTINGS_SIZE					6
+
+//This must be an even number
+#define STACKWORDS 						(S_SETTINGS_OFFSET + S_SETTINGS_SIZE)
+
+//This is used for commenting within marcos
+#define comment(X)
+
+//TODO - use this when everything works
+//TODO then reduce the memory usage
+//Note: there could be two implementations of this where one never writes to
+//memory 28-32 as they are never used
+#define INPUT_TO_OFFSET_12_15(OFFSET) \
+	ldw r1, sp[S_C_INPUT]; \
+	in r0, res[r1];\
+	{stw r0, dp[0*SECOND_STAGE_BUFFER_SIZE + OFFSET]; in r0, res[r1]};\
+	{stw r0, dp[1*SECOND_STAGE_BUFFER_SIZE + OFFSET]; in r0, res[r1]};\
+	stw r0, dp[2*SECOND_STAGE_BUFFER_SIZE + OFFSET];\
+	in r0, res[r1];\
+	{stw r0, dp[3*SECOND_STAGE_BUFFER_SIZE + OFFSET]}
+
+//This inputs from the channel to the pdm interface and saves it twice in the
+//second stage FIR at offset OFFSET and OFFSET + 16
+#define INPUT_TO_OFFSET(OFFSET) \
+	ldw r1, sp[S_C_INPUT]; \
+	in r0, res[r1];\
+	{stw r0, dp[0*SECOND_STAGE_BUFFER_SIZE + OFFSET]};\
+	{stw r0, dp[0*SECOND_STAGE_BUFFER_SIZE + SECOND_STAGE_COEF_COUNT + OFFSET]; in r0, res[r1]};\
+	{stw r0, dp[1*SECOND_STAGE_BUFFER_SIZE + OFFSET]};\
+	{stw r0, dp[1*SECOND_STAGE_BUFFER_SIZE + SECOND_STAGE_COEF_COUNT + OFFSET]; in r0, res[r1]};\
+	{stw r0, dp[2*SECOND_STAGE_BUFFER_SIZE + OFFSET]};\
+	{stw r0, dp[2*SECOND_STAGE_BUFFER_SIZE + SECOND_STAGE_COEF_COUNT + OFFSET]};\
+	in r0, res[r1];\
+	{stw r0, dp[3*SECOND_STAGE_BUFFER_SIZE + OFFSET]};\
+	{stw r0, dp[3*SECOND_STAGE_BUFFER_SIZE + SECOND_STAGE_COEF_COUNT + OFFSET]}
+
+
+//setup divider by N registers (coefs, data, accumulators)
+//must avoid r0 and r1 for persistant state as they will be clobbered by INPUT_TO_OFFSET
+	//coef = coef[THIRD_STAGE_COEFS_PER_STAGE-1] ---this is done offline
+	//coef = coef[THIRD_STAGE_COEFS_PER_ROW*S_THIRD_STAGE_PHASE - S_THIRD_STAGE_COEFS_PHASE]
+	//data0 = data[THIRD_STAGE_COEFS_PER_STAGE*S_THIRD_STAGE_PHASE*4]
+	//data1 = data0[THIRD_STAGE_COEFS_PER_STAGE]
+#define DIVIDE_BY_N_0()\
+	ldaw r0, sp[S_THIRD_STAGE];\
+	{ldw r7, r0[S_THIRD_STAGE_PHASE]; ldc r6, THIRD_STAGE_COEFS_PER_ROW};\
+	mul r6, r6, r7;\
+	{ldw r5, r0[S_THIRD_STAGE_COEFS_PHASE]; ldc r8, THIRD_STAGE_COEFS_PER_STAGE};\
+	{sub r6, r6, r5; ldw r9, r0[S_THIRD_STAGE_COEFS_POINER]};\
+	ldaw r9, r9[r6];\
+	mul r7, r7, r8;\
+	ldw r6, sp[S_CHAN_COUNT];\
+	mul r7, r7, r6;\
+	ldw r10, r0[S_THIRD_STAGE_DATA_POINTER];\
+	ldaw r10, r10[r7];\
+	ldaw r11, r10[r8];\
+	ldd r8, r7, r0[S_D_THIRD_STAGE_CH0_ACC];\
+	ldd r6, r5, r0[S_D_THIRD_STAGE_CH1_ACC];\
+	bl third_stage_fir_impl;\
+	ldaw r0, sp[S_THIRD_STAGE];\
+	std r8, r7, r0[S_D_THIRD_STAGE_CH0_ACC];\
+	std r6, r5, r0[S_D_THIRD_STAGE_CH1_ACC]
+
+#define N_DIVIDE_BY_N_1()\
+	{ldc r0, THIRD_STAGE_COEFS_PER_STAGE};\
+	ldaw r9, r9[-r0];\
+	ldc r0, THIRD_STAGE_COEFS_PER_STAGE-24;\
+	ldaw r10, r11[r0];\
+	{ldc r0, THIRD_STAGE_COEFS_PER_STAGE};\
+	ldaw r11, r10[r0];\
+	ldaw r0, sp[S_THIRD_STAGE];\
+	ldd r8, r7, r0[S_D_THIRD_STAGE_CH2_ACC];\
+	ldd r6, r5, r0[S_D_THIRD_STAGE_CH3_ACC];\
+	bl third_stage_fir_impl;\
+	ldaw r0, sp[S_THIRD_STAGE];\
+	std r8, r7, r0[S_D_THIRD_STAGE_CH2_ACC];\
+	std r6, r5, r0[S_D_THIRD_STAGE_CH3_ACC]
+
+#define DC_OFFSET_REMOVAL(PREV_Y, PREV_X, REGISTER) \
+	ldd r6, r5, r4[PREV_Y];\
+	ldc r7, MIC_ARRAY_DC_OFFSET_LOG2;\
+	ashr r9, r6, r7;\
+	lextract r8, r6, r5, r7, 32;\
+	lsub r11, r5, r5, r8, r4; 		comment(using the lowest bit of r4 which is always 0) \
+    lsub r11, r6, r6, r9, r11; \
+    {ldw r7, r4[PREV_X]};\
+    ashr r9, REGISTER, 32;\
+    ashr r10, r7, 32;\
+    lsub r11, r8, REGISTER, r7, r4; 	comment(same here) \
+    lsub r11, r9, r9, r10, r11;\
+    {ldc r10, 16};\
+    lextract r9, r9, r8, r10, 32;\
+    {shl r8, r8, r10; stw REGISTER, r4[PREV_X]};\
+    lsub r11, r5, r5, r8, r4; 		comment(same here) \
+    lsub r11, r6, r6, r9, r11;\
+	std r6, r5, r4[PREV_Y];\
+	lextract REGISTER, r6, r5, r10, 32
+
+//r6 is the AUDIO_POINTER_INDEX		--note that on the second pass r0-r3 will need to be reloaded as this modified them
+#define APPLY_WINDOW_FN(P)\
+	ldaw r9, sp[S_SETTINGS_OFFSET];\
+	ldw r9, r9[S_WINDOWING_ENABLED];\
+	bf r9, done_windowing ## P;\
+	apply_windowing ## P:;\
+		ldw r5, r4[S_FRAME_SIZE_LOG2];\
+		{shl r5, r6, 1; mkmsk r8, r5};\
+		{lss r5, r8, r5; ldc r7, 31};\
+		{bf r5, skip ## P ; mov r4, r6};\
+			sub r4, r8, r6;\
+		skip ## P:;\
+		{ldc r10, 0; ldc r11, 0};\
+		{ldw r4, r9[r4]};\
+		maccs r10, r11, r4, r0;\
+		lextract r0, r10, r11, r7, 32;\
+		{ldc r10, 0; ldc r11, 0};\
+		maccs r10, r11, r4, r1;\
+		lextract r1, r10, r11, r7, 32;\
+		{ldc r10, 0; ldc r11, 0};\
+		maccs r10, r11, r4, r2;\
+		lextract r2, r10, r11, r7, 32;\
+		{ldc r10, 0; ldc r11, 0};\
+		maccs r10, r11, r4, r3;\
+		lextract r3, r10, r11, r7, 32;\
+	done_windowing ## P:
+
+//r4 is the address of the S_FRAME_OFFSET_SECTION
+//r6 is the AUDIO_POINTER_INDEX
+#if MIC_ARRAY_WORD_LENGTH_SHORT
+	#define SAVE_SAMPLES_BIT_REVERSED(POINTER)\
+		{ldw r5, r4[S_FRAME_SIZE_LOG2]; ldc r7, 32};\
+		{bitrev r6, r6; ldc r8, 2};\
+		{sub r9, r7, r5;ldw r11, sp[S_CHAN_COUNT]};\
+		{lsu r11, r8, r11 ;ldc r8, (MIC_ARRAY_MAX_FRAME_SIZE_LOG2+2)};\
+		{shl r8, r11, r8;ldw r7, r4[POINTER]  };\
+		{add r8, r7, r8;shr r6, r6, r9;};\
+		{shr r0, r0, 16; shr r1, r1, 16};\
+		{shr r2, r2, 16; shr r3, r3, 16};\
+		{shl r1, r1, 16; shl r3, r3, 16};\
+		{add r1, r1, r0; add r3, r3, r2};\
+		stw r3, r8[r6];\
+		stw r1, r7[r6]
+
+#else
+	#define SAVE_SAMPLES_BIT_REVERSED(POINTER)\
+			{ldw r5, r4[S_FRAME_SIZE_LOG2]; ldc r7, 32};\
+			{bitrev r6, r6; ldc r8, 2};\
+			{sub r9, r7, r5;ldw r11, sp[S_CHAN_COUNT]};\
+			{lsu r11, r8, r11 ;ldc r8, (MIC_ARRAY_MAX_FRAME_SIZE_LOG2+3)};\
+			{shl r8, r11, r8;ldw r7, r4[POINTER]  };\
+			{add r8, r7, r8;shr r6, r6, r9;};\
+			std r3, r2, r8[r6];\
+			std r1, r0, r7[r6]
+
+#endif
+
+//r4 is the address of the S_FRAME_OFFSET_SECTION
+//r6 is the AUDIO_POINTER_INDEX
+#if MIC_ARRAY_WORD_LENGTH_SHORT
+	#define SAVE_SAMPLES_PACKED(POINTER)\
+		{ldc r8, 2 ;ldw r11, sp[S_CHAN_COUNT]};\
+		{lsu r11, r8, r11 ;ldc r8, (MIC_ARRAY_MAX_FRAME_SIZE_LOG2+2)};\
+		{shl r8, r11, r8;ldw r7, r4[POINTER]  };\
+		{add r8, r7, r8; nop};\
+		{shr r0, r0, 16; shr r1, r1, 16};\
+		{shr r2, r2, 16; shr r3, r3, 16};\
+		{shl r1, r1, 16; shl r3, r3, 16};\
+		{add r1, r1, r0; add r3, r3, r2};\
+		stw r3, r8[r6];\
+		stw r1, r7[r6]
+
+#else
+	#define SAVE_SAMPLES_PACKED(POINTER)\
+			{ldc r8, 2 ; ldw r11, sp[S_CHAN_COUNT]};\
+			{lsu r11, r8, r11 ;ldc r8, (MIC_ARRAY_MAX_FRAME_SIZE_LOG2+3)};\
+			{shl r8, r11, r8;ldw r7, r4[POINTER]  };\
+			{add r8, r7, r8; nop};\
+			std r3, r2, r8[r6];\
+			std r1, r0, r7[r6]
+
+#endif
+>>>>>>> develop
+
+//r4 is the address of the S_FRAME_OFFSET_SECTION
+//r6 is the AUDIO_POINTER_INDEX
+#if MIC_ARRAY_WORD_LENGTH_SHORT
+	#define SAVE_SAMPLES_NORMAL(POINTER, N)\
+		{ldc r5, 1<<(MIC_ARRAY_MAX_FRAME_SIZE_LOG2)};\
+    	{add r7, r6, r5; ldw r8, r4[POINTER]};\
+    	{add r5, r5, r5};\
+		{shr r0, r0, 16; shr r1, r1, 16};\
+		{shr r2, r2, 16; shr r3, r3, 16};\
+		st16 r1, r8[r7];\
+		st16 r0, r8[r6];\
+		{add r7, r7, r5; add r6, r6, r5};\
+		st16 r3, r8[r7];\
+		st16 r2, r8[r6]
+
+#else
+	#define SAVE_SAMPLES_NORMAL(POINTER, N)\
+		{ldc r5, 1<<(MIC_ARRAY_MAX_FRAME_SIZE_LOG2)};\
+    	{add r7, r6, r5; ldw r8, r4[POINTER]};\
+    	{add r5, r5, r5};\
+		stw r1, r8[r7];\
+		stw r0, r8[r6];\
+		{add r7, r7, r5; add r6, r6, r5};\
+		stw r3, r8[r7];\
+		stw r2, r8[r6]
+
+#endif
 
 
 
@@ -464,6 +768,7 @@ initialise_frame_gain:
     {ldc r11, 32;	ldc r10, (32 - MIC_ARRAY_FIXED_GAIN)}
     sub r10, r11, r10
 	stw r10, r4[S_FRAME_GAIN]
+<<<<<<< HEAD
 
 take_config_from_application:
 	//get the pointer for the config over the output channel
@@ -475,6 +780,19 @@ take_config_from_application:
 	ldaw r0, sp[S_FRAME_OFFSET]
 	ldw r11, r3[0] //frame_size_log2
 	here_is_frame_size_log2:
+=======
+
+take_config_from_application:
+	//get the pointer for the config over the output channel
+	ldw r0, sp[S_C_OUTPUT]
+	in r2, res[r0]		//deciamtor_config
+	ldw r3, r2[0];		//r3 is the pointer to the decimator_config_common
+
+//copy the setting out of the struct
+	ldaw r0, sp[S_FRAME_OFFSET]
+	ldw r11, r3[0] //frame_size_log2
+	here_is_frame_size_log2:
+>>>>>>> develop
     shr r10, r11, 4
     bt r10, actualLength
 	stw r11, r0[S_FRAME_SIZE_LOG2]
@@ -486,6 +804,7 @@ actualLength:
 	{stw r11, r0[S_FRAME_SIZE]   ;ldc r10, 33}
     clz r11, r11
     sub r11, r10, r11
+<<<<<<< HEAD
 	stw r11, r0[S_FRAME_SIZE_LOG2]
 lengthDone:
 
@@ -555,6 +874,80 @@ get_frame_pointer:
 	    {in r1, res[r2];stw r5, r11[S_OVERLAPPING_FRAMES]}
 	    {in r1, res[r2];stw r1, r11[S_FRAME_POINTER_0]}
 	    saving_non_overlapping_metadata_pointer:
+=======
+	stw r11, r0[S_FRAME_SIZE_LOG2]
+lengthDone:
+
+
+	ldaw r0, sp[S_SETTINGS_OFFSET]
+
+	ldw r11, r3[1] //apply_dc_offset
+	stw r11, r0[S_DC_OFFSET_REMOVAL_ENABLED]
+
+	ldw r11, r3[2] //index_bit_reversal
+	stw r11, r0[S_INDEX_BITREVERSING_ENABLED]
+
+	ldw r11, r3[3] //windowing_function
+	stw r11, r0[S_WINDOWING_ENABLED]
+
+	ldw r11, r3[6]	//apply mic gain compensation
+	stw r11, r0[S_MIC_GAIN_COMP]
+
+	ldw r11, r3[7]	//fir_gain_comp
+	stw r11, sp[S_FIR_GAIN_COMP]
+
+	ldw r11, r3[4] 	//decimation factor
+	ldaw r10, sp[S_THIRD_STAGE]
+	stw r11, r10[S_THIRD_STAGE_PHASE_COUNT]
+
+	here_is_the_coef_pointer:
+	{ldw r11, r3[5];} //coef pointer
+	ldc r9, (THIRD_STAGE_COEFS_PER_STAGE-1)			//move the coef pointer along by (THIRD_STAGE_COEFS_PER_STAGE-1)
+	ldaw r11, r11[r9]
+	stw r11, r10[S_THIRD_STAGE_COEFS_POINER]
+
+	here_is_the_data_pointer:
+	{ldw r11, r2[1];} //data pointer
+	stw r11, r10[S_THIRD_STAGE_DATA_POINTER]
+
+	{ldw r11, r2[6];} //channel count
+	stw r11, sp[S_CHAN_COUNT]
+
+	{ldw r11, r2[7];} // async interface enabled
+	stw r11, sp[S_ASYNC_INTERFACE]
+
+load_mic_gain_calib:
+	ldaw r1, sp[S_MIC_CALIB_OFFSET]
+	ldw r0, r2[2]
+	stw r0, r1[S_MIC_CALIB_0]
+	ldw r0, r2[3]
+	stw r0, r1[S_MIC_CALIB_1]
+	ldw r0, r2[4]
+	stw r0, r1[S_MIC_CALIB_2]
+	ldw r0, r2[5]
+	stw r0, r1[S_MIC_CALIB_3]
+
+init_frame_index:
+	ldaw r11, sp[S_FRAME_OFFSET]
+	ldc r1, 0
+	stw r1, r11[S_FRAME_0_INDEX]
+
+	ldw r1, r11[S_FRAME_SIZE]
+	shr r1, r1, 1
+	stw r1, r11[S_FRAME_1_INDEX]
+
+get_frame_pointer:
+	ldw r2, sp[S_C_OUTPUT]
+	rx_buffer_count:
+	in r5, res[r2]
+	sub r5, r5, 1
+
+	bt r5, overlapping
+	non_overlapping:
+	    {in r1, res[r2];stw r5, r11[S_OVERLAPPING_FRAMES]} // frames pointer
+	    {in r1, res[r2];stw r1, r11[S_FRAME_POINTER_0]} // metadata pointer
+	    saving_non_overlapping_metadata_pointer:
+>>>>>>> develop
 		{stw r1, r11[S_METADATA_POINTER_0];ldc r2, 0 }
 		std r2, r2, r1[0]	//init the sig bits
 		std r2, r2, r1[1]	//init the sig bits
@@ -835,6 +1228,7 @@ internal_channel_overwrite_begin:
 		internal_channel_3_event_vector:
 		get r11, ed
 		in r3, res[r11]	//input from the channel (to overwrite channel 3)
+<<<<<<< HEAD
 		{out res[r11], r3; bu internal_channel_overwrite_begin}	//output another token to the channel to let it know we have more space
 	internal_channel_overwrite_complete:
 
@@ -892,6 +1286,68 @@ internal_channel_overwrite_begin:
 	        ldw r5, r4[S_METADATA_POINTER_0]
 	        ldw r3, r4[S_FRAME_NUMBER]
 	        {stw r3, r5[4]; add r3, r3, 1}	//if metadata layout changes then this needs to change too
+=======
+		{out res[r11], r3; bu internal_channel_overwrite_begin}	//output another token to the channel to let it know we have more space
+	internal_channel_overwrite_complete:
+
+	ldaw r4, sp[S_OUTPUT_STORAGE];
+	std r0, r1, r4[S_D_OUTPUT_STORAGE_01];
+	std r2, r3, r4[S_D_OUTPUT_STORAGE_23];
+	retsp 0
+
+	output_phase:
+
+#define EXCHANGE_BUFFERS 0
+#define CONFIGURE_DECIMATOR 1
+
+		ldaw r4, sp[S_OUTPUT_STORAGE];
+		ldd r0, r1, r4[S_D_OUTPUT_STORAGE_01];
+		ldd r2, r3, r4[S_D_OUTPUT_STORAGE_23];
+
+		ldaw r4, sp[S_FRAME_OFFSET]
+
+		ldw r6, r4[S_FRAME_0_INDEX]
+
+		APPLY_WINDOW_FN(0)
+		ldaw r4, sp[S_FRAME_OFFSET]
+
+		ldaw r5, sp[S_SETTINGS_OFFSET]
+		ldw r5, r5[S_INDEX_BITREVERSING_ENABLED]
+		{ bt r5, index_bitrev_order_0 ; eq r5, r5, 2 }
+			index_normal_order_0:
+				SAVE_SAMPLES_NORMAL(S_FRAME_POINTER_0, 0);
+				bu save_to_frame_complete_0
+			index_bitrev_order_0:
+                bt r5, index_packed_0
+	            SAVE_SAMPLES_BIT_REVERSED(S_FRAME_POINTER_0);
+				bu save_to_frame_complete_0
+			index_packed_0:
+	            SAVE_SAMPLES_PACKED(S_FRAME_POINTER_0);
+		save_to_frame_complete_0:
+
+		ldw r5, r4[S_FRAME_0_INDEX]
+		{add r5, r5, 1;ldw r6, r4[S_OVERLAPPING_FRAMES]}
+		stw r5, r4[S_FRAME_0_INDEX]
+
+        ldw r11, sp[S_ASYNC_INTERFACE]
+        bt r11, async_send_samples
+
+		bt r6, overlapping_frames
+		no_overlapping_frames:
+
+		ldw r6, r4[S_FRAME_SIZE]
+		{eq r5, r5, r6; ldc r6, 0}
+		bf r5, do_the_rest;
+
+			reset_the_frame_index:
+			stw r6, r4[S_FRAME_0_INDEX]
+
+			write_the_current_frames_metadata:
+
+	        ldw r5, r4[S_METADATA_POINTER_0]
+	        ldw r3, r4[S_FRAME_NUMBER]
+	        {stw r3, r5[4]; add r3, r3, 1}	//if metadata layout changes then this needs to change too
+>>>>>>> develop
 	        stw r3, r4[S_FRAME_NUMBER]      //and save the new frame number back
 
 			exchange_buffers:
@@ -915,6 +1371,7 @@ internal_channel_overwrite_begin:
 	        {in r3, res[r6]}
 	        {stw r3, r4[S_METADATA_POINTER_0]}
 			std r0, r0, r3[0]	//set the frame sig bits to 0
+<<<<<<< HEAD
 			std r0, r0, r3[1]  	//set the frame sig bits to 0
 
 			ldw r4, sp[S_C_OUTPUT]
@@ -961,6 +1418,54 @@ internal_channel_overwrite_begin:
 				//set the metadata
 		        ldw r5, r4[S_METADATA_POINTER_0]
 		        ldw r3, r4[S_FRAME_NUMBER]
+=======
+			std r0, r0, r3[1]  	//set the frame sig bits to 0
+
+			ldw r4, sp[S_C_OUTPUT]
+			outct res[r4], 8 //WARNING: do not change this
+			no_overlapping_frames_done:
+			bu do_the_rest
+
+		overlapping_frames:
+
+			ldaw r4, sp[S_FRAME_OFFSET]
+			ldw r6, r4[S_FRAME_1_INDEX] //load second frame index
+
+			ldaw r5, sp[S_OUTPUT_STORAGE];
+			ldd r0, r1, r5[S_D_OUTPUT_STORAGE_01];
+			ldd r2, r3, r5[S_D_OUTPUT_STORAGE_23];
+
+			APPLY_WINDOW_FN(1)
+			ldaw r4, sp[S_FRAME_OFFSET]
+			ldw r6, r4[S_FRAME_1_INDEX] //load second frame index
+
+			ldaw r5, sp[S_SETTINGS_OFFSET]
+			ldw r5, r5[S_INDEX_BITREVERSING_ENABLED]
+    		{ bt r5, index_bitrev_order_1 ; eq r5, r5, 2 }
+				index_normal_order_1:
+					SAVE_SAMPLES_NORMAL(S_FRAME_POINTER_1, 1);
+					bu save_to_frame_complete_1
+  				index_bitrev_order_1:
+                    bt r5, index_packed_1
+	                SAVE_SAMPLES_BIT_REVERSED(S_FRAME_POINTER_1);
+			    	bu save_to_frame_complete_1
+			    index_packed_1:
+	                SAVE_SAMPLES_PACKED(S_FRAME_POINTER_1);
+			save_to_frame_complete_1:
+
+			ldw r5, r4[S_FRAME_1_INDEX]
+			{add r5, r5, 1;ldw r6, r4[S_FRAME_SIZE]}
+			stw r5, r4[S_FRAME_1_INDEX]
+
+
+			{eq r5, r5, r6; ldc r6, 0}
+			bf r5, do_the_rest;
+			at_the_end_of_the_overlapping_half_frame:
+
+				//set the metadata
+		        ldw r5, r4[S_METADATA_POINTER_0]
+		        ldw r3, r4[S_FRAME_NUMBER]
+>>>>>>> develop
 		        {stw r3, r5[4]; add r3, r3, 1}	//if metadata layout changes then this needs to change too
 	            stw r3, r4[S_FRAME_NUMBER]      //and save the new frame number back
 
@@ -993,9 +1498,31 @@ internal_channel_overwrite_begin:
 		        {in r5, res[r6];ldw r7, sp[S_C_OUTPUT]}
 				{outct res[r7], 8; stw r5, r4[S_METADATA_POINTER_1]}//WARNING: do not change this
 				std r0, r0, r5[0]  //reset the frame sig bits to 0
+<<<<<<< HEAD
 				std r0, r0, r5[1]  //reset the frame sig bits to 0
 
 	do_the_rest:
+=======
+				std r0, r0, r5[1]  //reset the frame sig bits to 0
+
+        async_send_samples:
+            ldc r6, 0
+            stw r6, r4[S_FRAME_0_INDEX]
+
+            ldw r9, sp[S_C_OUTPUT]
+            {ldc r5, 1<<(MIC_ARRAY_MAX_FRAME_SIZE_LOG2)}
+            {add r7, r6, r5; ldw r8, r4[S_FRAME_POINTER_0]}
+
+            ldw r10, r8[r6] // Load mic 1 sample
+            ldw r11, r8[r7] // Load mic 0 sample
+
+            out res[r9], r10
+            out res[r9], r11
+
+            bu do_the_rest
+
+	do_the_rest:
+>>>>>>> develop
 	ldaw r11, sp[S_THIRD_STAGE]
 	ldaw r4, sp[S_FRAME_OFFSET]
 
